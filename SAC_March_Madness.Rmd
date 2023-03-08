@@ -1,0 +1,273 @@
+---
+title: "MM2022"
+author: "Owen Patrick"
+date: '2022-03-24'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+options(digits = 3)
+
+# Loading the necessary packages
+pacman::p_load(readxl, tidyverse, GGally, cluster, factoextra, NbClust, dplyr)
+
+library(rpart)
+library(rpart.plot)
+library(rvest)
+library(httr)
+library(randomForest)
+library(caret)
+library(performanceEstimation)
+library(e1071)
+
+
+# Changing the default theme choice and theme settings
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+
+# Read in the data below:
+cbb <- read.csv("cbb.csv")
+
+unique(cbb$POSTSEASON)
+
+```
+
+```{r cleaning}
+
+# drop unnecessary variables
+clean_cbb <- cbb %>% 
+  select(-c(TEAM, CONF, G, SEED, YEAR)) 
+
+table(cbb$POSTSEASON)
+# 28 teams final 4 or higher
+
+# set NAs in postseason to None since they teams did not make the tournament
+clean_cbb$POSTSEASON[is.na(clean_cbb$POSTSEASON)] = "None"
+
+clean_cbb2 <- clean_cbb[!(clean_cbb$POSTSEASON == "None"),]
+
+# check for NAs
+sum(is.na(clean_cbb) ==TRUE)
+
+# create dummy var to divide teams into Final 4 (F4) or not
+clean_cbb3 <- clean_cbb2 %>% 
+  mutate(Final4 = ifelse(POSTSEASON == "2ND" | POSTSEASON == "Champions" | POSTSEASON == "F4", "yes", "no"))
+
+# make F4 a factor variable
+clean_cbb3$Final4 <- factor(clean_cbb3$Final4)
+
+ggplot(data = clean_cbb3, mapping = aes(Final4))+
+  geom_bar()
+
+# correct amount of final 4 teams (28)
+sum(clean_cbb3$Final4 == 'yes')
+
+set.seed(123)
+shuffle_index <- sample(1:nrow(clean_cbb3))
+head(shuffle_index)
+
+# shuffle data randomly for testing/training
+
+clean_cbb4 <- clean_cbb3[shuffle_index, ] %>% 
+  select(-c(POSTSEASON, W, BARTHAG, ADJOE, ADJDE)) 
+
+```
+
+
+```{r TestTrain}
+
+# create train and test set function
+create_train_test <- function(data, size = 0.8, train = TRUE) {
+    n_row = nrow(data)
+    total_row = size * n_row
+    train_sample <- 1: total_row
+    if (train == TRUE) {
+        return (data[train_sample, ])
+    } else {
+        return (data[-train_sample, ])
+    }
+}
+
+```
+
+
+
+```{r Elite8}
+# other option 
+
+# create dummy var to divide teams into Final 4 (F4) or not
+clean_cbb8 <- clean_cbb2 %>% 
+  mutate(Elite8 = ifelse(POSTSEASON == "2ND" | POSTSEASON == "Champions" | POSTSEASON == "F4"  | POSTSEASON == "E8", "YesElite8", "NotElite8"))
+
+# make F4 a factor variable
+clean_cbb8$Elite8 <- factor(clean_cbb8$Elite8)
+
+ggplot(data = clean_cbb8, mapping = aes(Elite8))+
+  geom_bar()
+
+# correct amount of final 4 teams (28)
+sum(clean_cbb8$Elite8 == 'yes')
+
+set.seed(123)
+shuffle_index <- sample(1:nrow(clean_cbb8))
+head(shuffle_index)
+
+# shuffle data randomly for testing/training
+
+clean_cbbE8 <- clean_cbb8[shuffle_index, ] %>% 
+  select(-c(POSTSEASON, W, BARTHAG, ADJOE, ADJDE, WAB)) 
+
+# model
+data_train8 <- create_train_test(clean_cbbE8, 0.8, train = TRUE)
+data_test8 <- create_train_test(clean_cbbE8, 0.8, train = FALSE)
+dim(data_train8)
+
+fit8 <- rpart(Elite8~., data = data_train8, method = 'class')
+rpart.plot(fit8, extra = 106, type = 5)
+
+predict_unseen8 <-predict(fit8, data_test8, type = 'class')
+
+table_mat8 <- table(data_test8$Elite8, predict_unseen8)
+table_mat8
+
+accuracy_Test <- sum(diag(table_mat8)) / sum(table_mat8)
+print(paste('Accuracy for test', accuracy_Test))
+
+
+```
+
+
+```{r}
+table(clean_cbbE8$Elite8)
+
+SMOTE_cbb <- smote(Elite8 ~ ., clean_cbbE8, perc.over = 2, perc.under = 2)
+
+table(SMOTE_cbb$Elite8)
+
+```
+
+
+
+```{r SMOTE RF}
+
+
+set.seed(1234)
+shuffle_index <- sample(1:nrow(SMOTE_cbb))
+head(shuffle_index)
+
+shuffle_smote <- clean_cbbE8[shuffle_index, ]
+
+# train test split
+data_train_smote <- create_train_test(shuffle_smote, 0.8, train = TRUE)
+data_test_smote <- create_train_test(shuffle_smote, 0.8, train = FALSE)
+
+
+# RF model with 10 fold cross validation
+
+# Define the control
+trControl <- trainControl(method = "cv",
+    number = 10,
+    search = "grid")
+
+# train the model on training data
+rf_smote <- train(Elite8~.,
+    data = data_train_smote,
+    method = "rf",
+    metric = "Accuracy",
+    trControl = trControl)
+# Print the results
+print(rf_smote)
+
+# prediction of test data
+pred_smote <- predict(rf_smote, data_test_smote)
+
+# confusion matrix showing results
+cm <- confusionMatrix(pred_smote, data_test_smote$Elite8)
+cm
+
+```
+```{r newobs}
+
+# Read in the data:
+
+
+# match columns to training/test data
+
+
+# Evaluate model and see which teams make it
+
+
+```
+
+
+
+```{r F4Tree1}
+
+# # create the split
+# 
+# data_train <- create_train_test(clean_cbb4, 0.8, train = TRUE)
+# data_test <- create_train_test(clean_cbb4, 0.8, train = FALSE)
+# dim(data_train)
+# 
+# prop.table(table(data_test$Final4))
+# prop.table(table(data_train$Final4))
+# fit <- rpart(Final4~., data = data_train, method = 'class')
+# rpart.plot(fit, extra = 106)
+# 
+# 
+# predict_unseen <-predict(fit, data_test, type = 'class')
+# 
+# table_mat <- table(data_test$Final4, predict_unseen)
+# table_mat
+# 
+# accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+# print(paste('Accuracy for test', accuracy_Test))
+
+```
+
+```{r F4Tree2}
+# 
+# # other option 
+# 
+# clean_cbb5 <- clean_cbb3[shuffle_index, ] %>% 
+#   select(-c(POSTSEASON, W)) 
+# 
+# data_train1 <- create_train_test(clean_cbb5, 0.8, train = TRUE)
+# data_test1 <- create_train_test(clean_cbb5, 0.8, train = FALSE)
+# 
+# fit1 <- rpart(Final4~., data = data_train1, method = 'class')
+# rpart.plot(fit1, extra = 106)
+
+```
+
+
+# Other methods to experiment with
+
+
+```{r Random Forest K fold Cross Validation}
+
+# # Define the control
+# trControl <- trainControl(method = "cv",
+#     number = 10,
+#     search = "grid")
+# 
+# rf_elite8 <- train(Elite8~.,
+#     data = data_train8,
+#     method = "rf",
+#     metric = "Accuracy",
+#     trControl = trControl)
+# # Print the results
+# print(rf_elite8)
+# 
+# # prediction
+# prediction <- predict(rf_elite8, data_test8)
+# 
+# cm <- confusionMatrix(prediction, data_test8$Elite8)
+# cm
+# 
+
+```
+
+
