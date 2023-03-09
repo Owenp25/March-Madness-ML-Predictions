@@ -190,13 +190,18 @@ cm
 ```
 ```{r newobs}
 
-# Read in the data:
 
+# Read in the data below:
+cbb2023 <- read.csv("2023_team_results.csv")
 
 # match columns to training/test data
-
+cbb2023_pred <- cbb2023 %>%
+ select(-c(CONF, rank, X3P.rate, X3P.rate.D, BARTHAG, ADJOE, ADJDE, WAB)) 
 
 # Evaluate model and see which teams make it
+prediction <- predict(rf_smote, cbb2023_pred)
+summary(prediction)
+prediction
 
 
 ```
@@ -205,40 +210,40 @@ cm
 
 ```{r F4Tree1}
 
-# # create the split
-# 
-# data_train <- create_train_test(clean_cbb4, 0.8, train = TRUE)
-# data_test <- create_train_test(clean_cbb4, 0.8, train = FALSE)
-# dim(data_train)
-# 
-# prop.table(table(data_test$Final4))
-# prop.table(table(data_train$Final4))
-# fit <- rpart(Final4~., data = data_train, method = 'class')
-# rpart.plot(fit, extra = 106)
-# 
-# 
-# predict_unseen <-predict(fit, data_test, type = 'class')
-# 
-# table_mat <- table(data_test$Final4, predict_unseen)
-# table_mat
-# 
-# accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
-# print(paste('Accuracy for test', accuracy_Test))
+# create the split
+
+data_train <- create_train_test(clean_cbb4, 0.8, train = TRUE)
+data_test <- create_train_test(clean_cbb4, 0.8, train = FALSE)
+dim(data_train)
+
+prop.table(table(data_test$Final4))
+prop.table(table(data_train$Final4))
+fit <- rpart(Final4~., data = data_train, method = 'class')
+rpart.plot(fit, extra = 106)
+
+
+predict_unseen <-predict(fit, data_test, type = 'class')
+
+table_mat <- table(data_test$Final4, predict_unseen)
+table_mat
+
+accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+print(paste('Accuracy for test', accuracy_Test))
 
 ```
 
 ```{r F4Tree2}
-# 
-# # other option 
-# 
-# clean_cbb5 <- clean_cbb3[shuffle_index, ] %>% 
-#   select(-c(POSTSEASON, W)) 
-# 
-# data_train1 <- create_train_test(clean_cbb5, 0.8, train = TRUE)
-# data_test1 <- create_train_test(clean_cbb5, 0.8, train = FALSE)
-# 
-# fit1 <- rpart(Final4~., data = data_train1, method = 'class')
-# rpart.plot(fit1, extra = 106)
+
+# other option
+
+clean_cbb5 <- clean_cbb3[shuffle_index, ] %>%
+  select(-c(POSTSEASON, W))
+
+data_train1 <- create_train_test(clean_cbb5, 0.8, train = TRUE)
+data_test1 <- create_train_test(clean_cbb5, 0.8, train = FALSE)
+
+fit1 <- rpart(Final4~., data = data_train1, method = 'class')
+rpart.plot(fit1, extra = 106)
 
 ```
 
